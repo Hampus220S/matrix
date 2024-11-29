@@ -1,5 +1,5 @@
 matrix: matrix.c
-	gcc matrix.c -lncursesw -lpthread -o matrix
+	gcc matrix.c -lncurses -lpthread -o matrix
 
 clean:
 	rm matrix
