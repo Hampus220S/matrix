@@ -6,19 +6,13 @@
  * Last updated: 2024-11-28
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <argp.h>
-#include <time.h>
-#include <stdbool.h>
-#include <ncurses.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <signal.h>
+#include "matrix.h"
 
-#define RANDOM_VALUE_GET(MIN, MAX) (rand() % ((MAX) - (MIN)) + (MIN))
+int COLOR_COUNT;
 
-#define RATIO_VALUE_GET(MIN, MAX, RATIO) ((RATIO) * ((MAX) - (MIN)) + (MIN))
+screen_t* screen;
+
+bool running;
 
 
 static char doc[] = "matrix - animation inspired by The Matrix";
@@ -48,9 +42,9 @@ struct args
 
 struct args args =
 {
-  .speed  = 10,
+  .speed  = 5,
   .depth  = 1,
-  .length = 10,
+  .length = 5,
   .async  = false,
   .old    = false,
   .typing = false
@@ -131,29 +125,6 @@ static error_t opt_parse(int key, char* arg, struct argp_state* state)
   return 0;
 }
 
-
-typedef struct
-{
-  char* symbols; // Symbols in string
-  int   length;  // Length of string
-  int   depth;   // Depth in background
-  int   speed;   // Speed of falling down
-  int   y;
-} string_t;
-
-typedef struct
-{
-  string_t* strings; // Strings in column
-  int       count;   // Number of strings
-} column_t;
-
-typedef struct
-{
-  column_t* columns; // Columns
-  int       width;   // Width of screen
-  int       height;  // Height of screen
-} screen_t;
-
 /*
  *
  */
@@ -232,7 +203,6 @@ static void screen_free(screen_t** screen)
 static char symbol_get(void)
 {
   return RANDOM_VALUE_GET(33, 126);
-  // return RANDOM_VALUE_GET(65, 90);
 }
 
 /*
@@ -265,7 +235,7 @@ static string_t string_create(int height)
   }
 
 
-  string.y = -(RANDOM_VALUE_GET(0, height));
+  string.y = -(RANDOM_VALUE_GET(0, height * 2));
 
   return string;
 }
@@ -310,8 +280,35 @@ static int string_append(column_t* column, int height)
 /*
  *
  */
-static void column_update(column_t* column, int height)
+static int string_remove(column_t* column)
 {
+  if(column->count <= 0) return 1;
+
+  for(int index = 0; index < (column->count - 1); index++)
+  {
+    column->strings[index] = column->strings[index + 1];
+  }
+
+  column->strings = realloc(column->strings, sizeof(string_t) * (column->count - 1));
+
+  if(!column->strings)
+  {
+    perror("realloc strings\n");
+
+    return 2;
+  }
+
+  column->count--;
+
+  return 0;
+}
+
+/*
+ *
+ */
+static int column_update(column_t* column, int height)
+{
+  // 1. Update each string (scroll)
   for(int index = 0; index < column->count; index++)
   {
     string_t* string = &column->strings[index];
@@ -319,27 +316,56 @@ static void column_update(column_t* column, int height)
     string_update(string);
   }
 
+  // 2. If strings exists
   if(column->count > 0)
   {
-    string_t* string = &column->strings[column->count - 1];
+    // Append new string, if last string is fully visable
+    string_t* last_string = &column->strings[column->count - 1];
 
-    if(string->y - string->length > 0)
+    if(last_string->y - last_string->length > 0)
     {
-      string_append(column, height);
+      if(string_append(column, height) != 0)
+      {
+        return 1;
+      }
+    }
+
+    // Remove oldest string, if it is not visable
+    string_t* first_string = &column->strings[0];
+
+    if(first_string->y - first_string->length >= height)
+    {
+      if(string_remove(column) != 0)
+      {
+        return 2;
+      }
     }
   }
-  else string_append(column, height);
+  else // If no strings exists, append one
+  {
+    if(string_append(column, height) != 0)
+    {
+      return 1;
+    }
+  }
+
+  return 0;
 }
 
 /*
  *
  */
-static void screen_update(screen_t* screen)
+static int screen_update(screen_t* screen)
 {
   for(int index = 0; index < screen->width; index++)
   {
-    column_update(&screen->columns[index], screen->height);
+    if(column_update(&screen->columns[index], screen->height) != 0)
+    {
+      return 1;
+    }
   }
+
+  return 0;
 }
 
 /*
@@ -356,7 +382,9 @@ static void string_print(string_t* string, int height, int x)
 
     char symbol = string->symbols[index];
 
-    int shade = 2 + ((float) index / (float) string->length) * 6;
+    float ratio = ((float) index / (float) string->length);
+
+    int color = 2 + RATIO_VALUE_GET(0, COLOR_COUNT - 1, ratio);
 
     if(index == 0)
     {
@@ -368,11 +396,11 @@ static void string_print(string_t* string, int height, int x)
     }
     else
     {
-      attron(COLOR_PAIR(shade));
+      attron(COLOR_PAIR(color));
 
       mvprintw(y, x, "%c", symbol);
 
-      attroff(COLOR_PAIR(shade));
+      attroff(COLOR_PAIR(color));
     }
 
   }
@@ -406,12 +434,10 @@ static void screen_print(screen_t* screen)
   attron(COLOR_PAIR(1));
 
   mvprintw(1, 1, "COUNT: %d", screen->columns[0].count);
+  mvprintw(2, 1, "COLORS: %d", COLORS);
 
   attroff(COLOR_PAIR(1));
 }
-
-screen_t* screen;
-bool running;
 
 /*
  *
@@ -422,13 +448,75 @@ static void* print_routine(void* arg)
   {
     erase();
 
-    screen_update(screen);
+    if(screen_update(screen) != 0)
+    {
+      perror("screen update");
+
+      break;
+    }
 
     screen_print(screen);
 
     refresh();
 
-    usleep(100000);
+    float ratio = (float) (10 - args.speed) / 10.f;
+
+    unsigned int delay = RATIO_VALUE_GET(10000, 500000, ratio);
+
+    usleep(delay);
+  }
+
+  return NULL;
+}
+
+/*
+ *
+ */
+static void custom_colors_init()
+{
+  COLOR_COUNT = 253;
+
+  for(int number = 0; number <= COLOR_COUNT; number++)
+  {
+    int color = number + 2;
+
+    init_color(color, 0, number, 0);
+
+    init_pair(color, color, COLOR_BLACK);
+  }
+}
+
+/*
+ *
+ */
+static void default_colors_init(void)
+{
+  COLOR_COUNT = 36;
+
+  for(int index = 0; index < COLOR_COUNT; index++)
+  {
+    int color = 16 + index;
+    int number = 2 + (COLOR_COUNT - 1 - index);
+
+    init_pair(number, color, COLOR_BLACK);
+  }
+}
+
+/*
+ *
+ */
+static void colors_init(void)
+{
+  // 1. Initialize white head color
+  init_pair(1, 15, COLOR_BLACK);
+
+  if(can_change_color())
+  {
+    custom_colors_init();
+  }
+  else
+  {
+    default_colors_init();
   }
 }
 
@@ -452,17 +540,10 @@ static int curses_init(void)
 
   use_default_colors();
 
+  colors_init();
+
   clear();
   refresh();
-
-  init_pair(1, COLOR_WHITE, COLOR_BLACK);
-
-  int shades[6] = {46, 40, 34, 28, 22, 16};
-
-  for(int i = 0; i < 6; i++)
-  {
-    init_pair(1 + i + 1, shades[i], COLOR_BLACK); 
-  }
 
   return 0;
 }
