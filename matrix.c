@@ -3,12 +3,22 @@
  *
  * Written by Hampus Fridholm
  *
- * Last updated: 2024-11-28
+ * Last updated: 2024-11-30
  */
 
 #include "matrix.h"
 
-int COLOR_COUNT;
+const int COLOR_COUNT = 7;
+const int DEPTH_COUNT = 6;
+
+const int COLOR_CODES[] = {
+  15, 46, 40, 34, 28, 22, 16,
+  15, 41, 35, 29, 23, 17, 16,
+  15, 36, 30, 24, 18, 17, 16,
+  15, 31, 25, 19, 18, 17, 16,
+  15, 26, 20, 19, 18, 17, 16,
+  15, 21, 20, 19, 18, 17, 16
+};
 
 screen_t* screen;
 
@@ -43,7 +53,7 @@ struct args
 struct args args =
 {
   .speed  = 5,
-  .depth  = 1,
+  .depth  = 0,
   .length = 5,
   .async  = false,
   .old    = false,
@@ -91,7 +101,7 @@ static error_t opt_parse(int key, char* arg, struct argp_state* state)
 
       number = atoi(arg);
 
-      if(number >= 1 && number <= 10)
+      if(number >= 0 && number < DEPTH_COUNT)
       {
         args->depth = number;
       }
@@ -237,6 +247,8 @@ static string_t string_create(int height)
 
   string.y = -(RANDOM_VALUE_GET(0, height * 2));
 
+  string.depth = RANDOM_VALUE_GET(0, args.depth);
+
   return string;
 }
 
@@ -371,6 +383,24 @@ static int screen_update(screen_t* screen)
 /*
  *
  */
+static int color_get(int depth, int index, int length)
+{
+  float ratio = (float) index / (float) length;
+
+  int depth_index;
+
+  if(index > 0)
+  {
+    depth_index = RATIO_VALUE_GET(1, COLOR_COUNT - 2, ratio);
+  }
+  else depth_index = 0;
+
+  return 1 + depth * COLOR_COUNT + depth_index;
+}
+
+/*
+ *
+ */
 static void string_print(string_t* string, int height, int x)
 {
   for(int index = 0; index < string->length; index++)
@@ -382,27 +412,14 @@ static void string_print(string_t* string, int height, int x)
 
     char symbol = string->symbols[index];
 
-    float ratio = ((float) index / (float) string->length);
+    int color = color_get(string->depth, index, string->length);
 
-    int color = 2 + RATIO_VALUE_GET(0, COLOR_COUNT - 1, ratio);
 
-    if(index == 0)
-    {
-      attron(COLOR_PAIR(1));
+    attron(COLOR_PAIR(color));
 
-      mvprintw(y, x, "%c", symbol);
+    mvprintw(y, x, "%c", symbol);
 
-      attroff(COLOR_PAIR(1));
-    }
-    else
-    {
-      attron(COLOR_PAIR(color));
-
-      mvprintw(y, x, "%c", symbol);
-
-      attroff(COLOR_PAIR(color));
-    }
-
+    attroff(COLOR_PAIR(color));
   }
 }
 
@@ -472,51 +489,13 @@ static void* print_routine(void* arg)
 /*
  *
  */
-static void custom_colors_init()
-{
-  COLOR_COUNT = 253;
-
-  for(int number = 0; number <= COLOR_COUNT; number++)
-  {
-    int color = number + 2;
-
-    init_color(color, 0, number, 0);
-
-    init_pair(color, color, COLOR_BLACK);
-  }
-}
-
-/*
- *
- */
-static void default_colors_init(void)
-{
-  COLOR_COUNT = 36;
-
-  for(int index = 0; index < COLOR_COUNT; index++)
-  {
-    int color = 16 + index;
-    int number = 2 + (COLOR_COUNT - 1 - index);
-
-    init_pair(number, color, COLOR_BLACK);
-  }
-}
-
-/*
- *
- */
 static void colors_init(void)
 {
-  // 1. Initialize white head color
-  init_pair(1, 15, COLOR_BLACK);
+  for(int index = 0; index < DEPTH_COUNT * COLOR_COUNT; index++)
+  {
+    int color = COLOR_CODES[index];
 
-  if(can_change_color())
-  {
-    custom_colors_init();
-  }
-  else
-  {
-    default_colors_init();
+    init_pair(index + 1, color, COLOR_BLACK);
   }
 }
 
