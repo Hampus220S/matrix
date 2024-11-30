@@ -8,6 +8,14 @@
 
 #include "matrix.h"
 
+#define INPUT_DELAY 500000
+
+#define MIN_DELAY 10000
+#define MAX_DELAY 100000
+
+#define MIN_LENGTH 4
+#define MAX_LENGTH 30
+
 const int COLOR_COUNT = 7;
 const int DEPTH_COUNT = 6;
 
@@ -34,8 +42,7 @@ static struct argp_option options[] =
   { "speed",  's', "NUMBER", 0, "Speed of scrolling" },
   { "depth",  'd', "NUMBER", 0, "Depth of environment" },
   { "length", 'l', "NUMBER", 0, "General length of line" },
-  { "async",  'a', 0,        0, "Asyncronous scroll" },
-  { "old",    'o', 0,        0, "Use old style scrolling" },
+  { "air",    'a', "NUMBER", 0, "Air between strings" },
   { "typing", 't', 0,        0, "Don't exit on keypress" },
   { 0 }
 };
@@ -45,8 +52,7 @@ struct args
   int  speed;
   int  depth;
   int  length;
-  bool async;
-  bool old;
+  int  air;
   bool typing;
 };
 
@@ -55,8 +61,7 @@ struct args args =
   .speed  = 5,
   .depth  = 0,
   .length = 5,
-  .async  = false,
-  .old    = false,
+  .air    = 5,
   .typing = false
 };
 
@@ -71,14 +76,6 @@ static error_t opt_parse(int key, char* arg, struct argp_state* state)
 
   switch(key)
   {
-    case 'a':
-      args->async = true;
-      break;
-
-    case 'o':
-      args->old = true;
-      break;
-
     case 't':
       args->typing = true;
       break;
@@ -91,6 +88,19 @@ static error_t opt_parse(int key, char* arg, struct argp_state* state)
       if(number >= 1 && number <= 10)
       {
         args->speed = number;
+      }
+      else argp_usage(state);
+
+      break;
+
+    case 'a':
+      if(!arg) argp_usage(state);
+
+      number = atoi(arg);
+
+      if(number >= 1 && number <= 10)
+      {
+        args->air = number;
       }
       else argp_usage(state);
 
@@ -216,25 +226,91 @@ static char symbol_get(void)
 }
 
 /*
- *
+ * Maybe: Remove height and have constant max_height, independent of height
  */
-static int string_length_get(int height)
+static int length_gen(int depth)
 {
-  float length_ratio = ((float) args.length / 10.f);
+  float length_ratio = (float) args.length / 10.f;
 
-  int max_length = RATIO_VALUE_GET(height / 10, height, length_ratio);
+  float depth_ratio = (float) (DEPTH_COUNT - depth) / (float) DEPTH_COUNT;
 
-  return RANDOM_VALUE_GET(4, max_length);
+  float ratio = length_ratio * depth_ratio;
+
+
+  int max_length = RATIO_VALUE_GET(MIN_LENGTH, MAX_LENGTH, ratio);
+
+  return RANDOM_VALUE_GET(MIN_LENGTH, max_length);
 }
 
 /*
  *
  */
-static string_t string_create(int height)
+static int y_gen(int depth)
 {
-  string_t string;
+  float air_ratio = (float) args.air / 10.f;
 
-  string.length = string_length_get(height);
+  float depth_ratio = (float) (DEPTH_COUNT - depth) / (float) DEPTH_COUNT;
+
+  float ratio = air_ratio * depth_ratio;
+
+
+  int max_y = RATIO_VALUE_GET(MAX_LENGTH, MAX_LENGTH * 6, ratio);
+  
+  return -(RANDOM_VALUE_GET(0, max_y));
+}
+
+/*
+ *
+ */
+static int depth_gen(void)
+{
+  int weights[args.depth + 1];
+
+  for (int i = 0; i <= args.depth; i++)
+  {
+    weights[i] = args.depth - i;
+  }
+
+  // Calculate the total sum of weights
+  int total_weight = 0;
+
+  for (int i = 0; i <= args.depth; i++)
+  {
+    total_weight += weights[i];
+  }
+
+  // Generate a random number between 0 and total_weight - 1
+  int rand_weight = rand() % total_weight;
+
+  // Find the index based on the random weight
+  int cumulative_weight = 0;
+
+  for (int i = 0; i <= args.depth; i++)
+  {
+    cumulative_weight += weights[i];
+
+    if (rand_weight < cumulative_weight)
+    {
+      return i;
+    }
+  }
+
+  // Fallback (though this should never be reached)
+  return 0;
+}
+
+/*
+ *
+ */
+static string_t string_create(void)
+{
+  string_t string = { 0 };
+
+  string.depth = depth_gen();
+
+  string.length = length_gen(string.depth);
+
+  string.y = y_gen(string.depth);
 
 
   string.symbols = malloc(sizeof(char) * string.length);
@@ -243,13 +319,6 @@ static string_t string_create(int height)
   {
     string.symbols[index] = symbol_get();
   }
-
-
-  string.y = -(RANDOM_VALUE_GET(0, height * 2));
-
-  string.depth = RANDOM_VALUE_GET(0, args.depth);
-
-  string.clock = 0;
 
   return string;
 }
@@ -266,7 +335,6 @@ static void string_update(string_t* string)
 
   string->y++;
 
-  // Bubble up symbols
   for(int index = string->length; index-- > 0;)
   {
     string->symbols[index] = string->symbols[index - 1];
@@ -278,7 +346,7 @@ static void string_update(string_t* string)
 /*
  *
  */
-static int string_append(column_t* column, int height)
+static int string_append(column_t* column)
 {
   column->strings = realloc(column->strings, sizeof(string_t) * (column->count + 1));
 
@@ -289,7 +357,7 @@ static int string_append(column_t* column, int height)
     return 1;
   }
 
-  column->strings[column->count] = string_create(height);
+  column->strings[column->count] = string_create();
 
   column->count++;
 
@@ -343,7 +411,7 @@ static int column_update(column_t* column, int height)
 
     if(last_string->y - last_string->length > 0)
     {
-      if(string_append(column, height) != 0)
+      if(string_append(column) != 0)
       {
         return 1;
       }
@@ -362,7 +430,7 @@ static int column_update(column_t* column, int height)
   }
   else // If no strings exists, append one
   {
-    if(string_append(column, height) != 0)
+    if(string_append(column) != 0)
     {
       return 1;
     }
@@ -392,17 +460,14 @@ static int screen_update(screen_t* screen)
  */
 static int color_get(int depth, int index, int length)
 {
+  if(index == 0) return 1 + depth * COLOR_COUNT;
+
+
   float ratio = (float) index / (float) length;
 
-  int depth_index;
+  int depth_index = RATIO_VALUE_GET(1, COLOR_COUNT - 2, ratio);
 
-  if(index > 0)
-  {
-    depth_index = RATIO_VALUE_GET(1, COLOR_COUNT - 2, ratio);
-  }
-  else depth_index = 0;
-
-  return 1 + depth * COLOR_COUNT + depth_index;
+  return (1 + depth * COLOR_COUNT + depth_index);
 }
 
 /*
@@ -463,7 +528,7 @@ static unsigned int delay_get(void)
 {
   float ratio = (float) (10 - args.speed) / 10.f;
 
-  return RATIO_VALUE_GET(10000, 500000, ratio);
+  return RATIO_VALUE_GET(MIN_DELAY, MAX_DELAY, ratio);
 }
 
 /*
@@ -540,6 +605,10 @@ static int curses_init(void)
  */
 static void curses_free(void)
 {
+  clear();
+
+  refresh();
+
   endwin();
 }
 
@@ -603,7 +672,7 @@ int main(int argc, char* argv[])
       if(key == 'q') break;
     }
 
-    usleep(500000);
+    usleep(INPUT_DELAY);
 
     flushinp(); // Flush input buffer
   }
