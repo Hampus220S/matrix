@@ -25,6 +25,7 @@ typedef struct
   int   length;  // Length of string
   int   depth;   // Depth in background
   int   speed;   // Speed of falling down
+  int   clock;   // Internal clock
   int   y;
 } string_t;
 

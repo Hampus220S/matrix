@@ -249,6 +249,8 @@ static string_t string_create(int height)
 
   string.depth = RANDOM_VALUE_GET(0, args.depth);
 
+  string.clock = 0;
+
   return string;
 }
 
@@ -257,6 +259,11 @@ static string_t string_create(int height)
  */
 static void string_update(string_t* string)
 {
+  string->clock = (string->clock + 1) % (string->depth + 1);
+
+  if(string->clock != 0) return; 
+  
+
   string->y++;
 
   // Bubble up symbols
@@ -447,13 +454,16 @@ static void screen_print(screen_t* screen)
 
     column_print(column, screen->height, x);
   }
+}
 
-  attron(COLOR_PAIR(1));
+/*
+ *
+ */
+static unsigned int delay_get(void)
+{
+  float ratio = (float) (10 - args.speed) / 10.f;
 
-  mvprintw(1, 1, "COUNT: %d", screen->columns[0].count);
-  mvprintw(2, 1, "COLORS: %d", COLORS);
-
-  attroff(COLOR_PAIR(1));
+  return RATIO_VALUE_GET(10000, 500000, ratio);
 }
 
 /*
@@ -461,6 +471,8 @@ static void screen_print(screen_t* screen)
  */
 static void* print_routine(void* arg)
 {
+  unsigned int delay = delay_get();
+
   while(running)
   {
     erase();
@@ -475,10 +487,6 @@ static void* print_routine(void* arg)
     screen_print(screen);
 
     refresh();
-
-    float ratio = (float) (10 - args.speed) / 10.f;
-
-    unsigned int delay = RATIO_VALUE_GET(10000, 500000, ratio);
 
     usleep(delay);
   }
@@ -562,6 +570,7 @@ int main(int argc, char* argv[])
 
   running = true;
 
+
   pthread_t thread;
 
   if(pthread_create(&thread, NULL, print_routine, NULL) != 0)
@@ -576,7 +585,7 @@ int main(int argc, char* argv[])
   }
 
   int key;
-  while((key = getch()))
+  while((key = getch()) != ERR)
   {
     if(key == KEY_RESIZE)
     {
@@ -593,8 +602,11 @@ int main(int argc, char* argv[])
         
       if(key == 'q') break;
     }
-  }
 
+    usleep(500000);
+
+    flushinp(); // Flush input buffer
+  }
 
   running = false;
 
