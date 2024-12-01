@@ -1,5 +1,1 @@
-*
-!.gitignore
-!matrix.c
-!makefile
-!matrix.h
+matrix
