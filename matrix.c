@@ -6,6 +6,16 @@
  * Last updated: 2024-11-30
  */
 
+/*
+ * depth  - a number between 0 and 5
+ *
+ * speed  - a number between 1 and 10
+ *
+ * length - a number between 1 and 10
+ *
+ * air    - a number between 1 and 10
+ */
+
 #include "matrix.h"
 
 #define INPUT_DELAY 500000
@@ -146,7 +156,7 @@ static error_t opt_parse(int key, char* arg, struct argp_state* state)
 }
 
 /*
- *
+ * Create the screen
  */
 static screen_t* screen_create(int width, int height)
 {
@@ -185,7 +195,7 @@ static screen_t* screen_create(int width, int height)
 }
 
 /*
- *
+ * Free a column (and every string inside)
  */
 static void column_free(column_t* column)
 {
@@ -200,7 +210,7 @@ static void column_free(column_t* column)
 }
 
 /*
- *
+ * Free screen (and every column inside)
  */
 static void screen_free(screen_t** screen)
 {
@@ -220,13 +230,26 @@ static void screen_free(screen_t** screen)
   *screen = NULL;
 }
 
+/*
+ * Get a new random symbol for a string
+ *
+ * The symbol can be between ASCII 33 and 126
+ */
 static char symbol_get(void)
 {
   return RANDOM_VALUE_GET(33, 126);
 }
 
 /*
- * Maybe: Remove height and have constant max_height, independent of height
+ * Generate a random length for a string
+ *
+ * The length is dependent on:
+ * 1. the average length (args.length)
+ * 2. the depth
+ *
+ * Strings in deeper depths (5, 4, ...) are shorter
+ *
+ * That should simulate them being further away
  */
 static int length_gen(int depth)
 {
@@ -243,7 +266,17 @@ static int length_gen(int depth)
 }
 
 /*
+ * Generate a random y position for a string
  *
+ * The y position is dependent on:
+ * 1. the air constant (how much air between strings)
+ * 2. the depth
+ *
+ * Strings in deeper depths (5, 4, ...) have less distance between them
+ *
+ * The thought is that the distance between 
+ * strings are the same on every depth,
+ * but perceived as smaller further away
  */
 static int y_gen(int depth)
 {
@@ -260,57 +293,62 @@ static int y_gen(int depth)
 }
 
 /*
+ * Generate depth for string
  *
+ * The deeper values are less likely
+ *
+ * Cumulative Weight Search
+ *
+ * depth 0 is 6 times more likely to be picked than depth 5
+ *
+ * depth 1 is 5 times ... than depth 5
+ *
+ * depth 4 is 2 times ... than depth 5
  */
 static int depth_gen(void)
 {
-  int weights[args.depth + 1];
-
-  for (int i = 0; i <= args.depth; i++)
-  {
-    weights[i] = args.depth - i;
-  }
-
-  // Calculate the total sum of weights
+  // 1. Calculate the total sum of weights
   int total_weight = 0;
 
-  for (int i = 0; i <= args.depth; i++)
+  for(int depth = 0; depth <= args.depth; depth++)
   {
-    total_weight += weights[i];
+    total_weight += (args.depth - depth);
   }
 
-  // Generate a random number between 0 and total_weight - 1
-  int rand_weight = rand() % total_weight;
+  // 2. Pick a random weight
+  int rand_weight = RANDOM_VALUE_GET(0, total_weight);
 
-  // Find the index based on the random weight
+
+  // 3. Find the index based on the random weight
   int cumulative_weight = 0;
 
-  for (int i = 0; i <= args.depth; i++)
+  for(int depth = 0; depth < args.depth; depth++)
   {
-    cumulative_weight += weights[i];
+    cumulative_weight += (args.depth - depth);
 
-    if (rand_weight < cumulative_weight)
-    {
-      return i;
-    }
+    if(cumulative_weight > rand_weight) return depth;
   }
 
-  // Fallback (though this should never be reached)
-  return 0;
+  return args.depth;
 }
 
 /*
+ * Create a string, with:
+ * - random depth
+ * - random length
+ * - random start height (y position)
  *
+ * Generate random symbols for the string
  */
 static string_t string_create(void)
 {
   string_t string = { 0 };
 
-  string.depth = depth_gen();
+  string.depth  = depth_gen();
 
   string.length = length_gen(string.depth);
 
-  string.y = y_gen(string.depth);
+  string.y      = y_gen(string.depth);
 
 
   string.symbols = malloc(sizeof(char) * string.length);
@@ -324,7 +362,12 @@ static string_t string_create(void)
 }
 
 /*
+ * Update the string, when the clock cycle is right
  *
+ * 1. Scroll the string down one step
+ * 2. Cycle the symbols up one step
+ *
+ * That way, the symbols look like they are fixed in place
  */
 static void string_update(string_t* string)
 {
@@ -344,7 +387,9 @@ static void string_update(string_t* string)
 }
 
 /*
+ * Append string to column
  *
+ * Allocate more memory and add string to array
  */
 static int string_append(column_t* column)
 {
@@ -365,7 +410,11 @@ static int string_append(column_t* column)
 }
 
 /*
+ * Remove string from column
  *
+ * Shift the other strings to fill the left over space
+ *
+ * Reallocate with less memory (free the previous memory)
  */
 static int string_remove(column_t* column)
 {
@@ -391,7 +440,11 @@ static int string_remove(column_t* column)
 }
 
 /*
+ * Update the column (every string in column)
  *
+ * - Add string if no strings exists
+ * - Add string if previous string is fully visable
+ * - Remove string if it is not visable
  */
 static int column_update(column_t* column, int height)
 {
@@ -440,7 +493,7 @@ static int column_update(column_t* column, int height)
 }
 
 /*
- *
+ * Update screen (every column in screen)
  */
 static int screen_update(screen_t* screen)
 {
@@ -456,7 +509,12 @@ static int screen_update(screen_t* screen)
 }
 
 /*
+ * Get the color for a symbol in string
  *
+ * Strings on a deeper level is more blue than
+ * the green strings closer to the screen
+ *
+ * The first symbol of a string is bright white
  */
 static int color_get(int depth, int index, int length)
 {
@@ -471,7 +529,7 @@ static int color_get(int depth, int index, int length)
 }
 
 /*
- *
+ * Print a string (every symbol in string)
  */
 static void string_print(string_t* string, int height, int x)
 {
@@ -496,7 +554,7 @@ static void string_print(string_t* string, int height, int x)
 }
 
 /*
- *
+ * Print a column (every string in column)
  */
 static void column_print(column_t* column, int height, int x)
 {
@@ -509,7 +567,7 @@ static void column_print(column_t* column, int height, int x)
 }
 
 /*
- *
+ * Print screen (every column in screen)
  */
 static void screen_print(screen_t* screen)
 {
@@ -522,7 +580,15 @@ static void screen_print(screen_t* screen)
 }
 
 /*
+ * Get base delay of animation
  *
+ * The base delay can be thought of as one "tick"
+ *
+ * Strings in depth=0 update every tick
+ *
+ * Strings in depth=5 update every 6 ticks
+ *
+ * The internal clock in each string keeps track of the ticks
  */
 static unsigned int delay_get(void)
 {
@@ -532,7 +598,13 @@ static unsigned int delay_get(void)
 }
 
 /*
+ * The print routine (output routine)
  *
+ * The matrix animation takes place simultaneously 
+ * as the user can input keystrokes
+ *
+ * Every iteration is a tick of the animation,
+ * where the strings are updated and printed
  */
 static void* print_routine(void* arg)
 {
@@ -560,7 +632,14 @@ static void* print_routine(void* arg)
 }
 
 /*
+ * Init the colors for the strings in the different depths 
  *
+ * Strings in depths 1, 2 are more green
+ *
+ * Strings in deeper depths are more blue
+ *
+ * Blue is ment to symbolize that the strings is further away,
+ * like mountains look blue in the sky
  */
 static void colors_init(void)
 {
@@ -573,7 +652,7 @@ static void colors_init(void)
 }
 
 /*
- *
+ * Init the ncurses library and screen
  */
 static int curses_init(void)
 {
@@ -601,7 +680,7 @@ static int curses_init(void)
 }
 
 /*
- *
+ * Close the ncurses library and restore the terminal
  */
 static void curses_free(void)
 {
