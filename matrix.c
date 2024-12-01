@@ -195,6 +195,14 @@ static screen_t* screen_create(int width, int height)
 }
 
 /*
+ * Free a string (symbol array)
+ */
+static void string_free(string_t* string)
+{
+  free(string->symbols);
+}
+
+/*
  * Free a column (and every string inside)
  */
 static void column_free(column_t* column)
@@ -203,7 +211,7 @@ static void column_free(column_t* column)
   {
     string_t* string = &column->strings[index];
 
-    free(string->symbols);
+    string_free(string);
   }
 
   free(column->strings);
@@ -353,6 +361,13 @@ static string_t string_create(void)
 
   string.symbols = malloc(sizeof(char) * string.length);
 
+  if(!string.symbols)
+  {
+    perror("malloc symbols");
+
+    return string; // Eigentlich, return error
+  }
+
   for(int index = 0; index < string.length; index++)
   {
     string.symbols[index] = symbol_get();
@@ -378,7 +393,7 @@ static void string_update(string_t* string)
 
   string->y++;
 
-  for(int index = string->length; index-- > 0;)
+  for(int index = string->length; index-- > 1;)
   {
     string->symbols[index] = string->symbols[index - 1];
   }
@@ -420,11 +435,16 @@ static int string_remove(column_t* column)
 {
   if(column->count <= 0) return 1;
 
+  // 1. Free the first (and oldest) string
+  string_free(&column->strings[0]);
+
+  // 2. Shift the rest of the strings to take its place
   for(int index = 0; index < (column->count - 1); index++)
   {
     column->strings[index] = column->strings[index + 1];
   }
 
+  // 3. Free the old memory and shrink the array
   column->strings = realloc(column->strings, sizeof(string_t) * (column->count - 1));
 
   if(!column->strings)
@@ -758,9 +778,9 @@ int main(int argc, char* argv[])
 
   running = false;
 
+  // Wait for the second thread to finish
   // pthread_cancel(thread);
 
-  // Wait for the second thread to finish
   if(pthread_join(thread, NULL) != 0)
   {
     curses_free();
