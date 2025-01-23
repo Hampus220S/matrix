@@ -348,32 +348,33 @@ static int depth_gen(void)
  *
  * Generate random symbols for the string
  */
-static string_t string_create(void)
+static int string_init(string_t* string)
 {
-  string_t string = { 0 };
+  string->depth  = depth_gen();
 
-  string.depth  = depth_gen();
+  string->length = length_gen(string->depth);
 
-  string.length = length_gen(string.depth);
+  string->y      = y_gen(string->depth);
+  
+  string->clock  = 0;
 
-  string.y      = y_gen(string.depth);
 
+  string->symbols = malloc(sizeof(char) * string->length);
 
-  string.symbols = malloc(sizeof(char) * string.length);
-
-  if(!string.symbols)
+  if(!string->symbols)
   {
     perror("malloc symbols");
 
-    return string; // Eigentlich, return error
+    return 1;
   }
 
-  for(int index = 0; index < string.length; index++)
+  // Initialize random symbols
+  for(int index = 0; index < string->length; index++)
   {
-    string.symbols[index] = symbol_get();
+    string->symbols[index] = symbol_get();
   }
 
-  return string;
+  return 0;
 }
 
 /*
@@ -408,16 +409,27 @@ static void string_update(string_t* string)
  */
 static int string_append(column_t* column)
 {
-  column->strings = realloc(column->strings, sizeof(string_t) * (column->count + 1));
+  string_t new_string;
 
-  if(!column->strings)
+  if(string_init(&new_string) != 0)
   {
-    perror("realloc strings\n");
+    perror("string init");
 
     return 1;
   }
 
-  column->strings[column->count] = string_create();
+  string_t* temp_strings = realloc(column->strings, sizeof(string_t) * (column->count + 1));
+
+  if(!temp_strings)
+  {
+    perror("realloc strings");
+
+    return 2;
+  }
+
+  column->strings = temp_strings;
+
+  column->strings[column->count] = new_string;
 
   column->count++;
 
@@ -445,14 +457,16 @@ static int string_remove(column_t* column)
   }
 
   // 3. Free the old memory and shrink the array
-  column->strings = realloc(column->strings, sizeof(string_t) * (column->count - 1));
+  string_t* temp_strings = realloc(column->strings, sizeof(string_t) * (column->count - 1));
 
-  if(!column->strings)
+  if(!temp_strings)
   {
-    perror("realloc strings\n");
+    perror("realloc strings");
 
     return 2;
   }
+
+  column->strings = temp_strings;
 
   column->count--;
 
