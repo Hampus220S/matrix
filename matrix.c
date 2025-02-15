@@ -1,5 +1,5 @@
 /*
- * matrix.c - animation inspired by The Matrix
+ * matrix.c - animation inspired by "The Matrix"
  *
  * Written by Hampus Fridholm
  *
@@ -26,7 +26,7 @@ typedef struct
   int   length;  // Length of string
   int   depth;   // Depth in background
   int   clock;   // Internal clock
-  int   y;
+  int   y;       // Height on screen
 } string_t;
 
 typedef struct
@@ -42,13 +42,14 @@ typedef struct
   int       height;  // Height of screen
 } screen_t;
 
+// Wait 0.5 seconds before checking latest keypress
 #define INPUT_DELAY 500000
 
 #define MIN_DELAY 10000
 #define MAX_DELAY 100000
 
-#define MIN_LENGTH 4
-#define MAX_LENGTH 30
+#define MIN_LENGTH 4  // Shortest string
+#define MAX_LENGTH 30 // Longest  string
 
 const int COLOR_COUNT = 7;
 const int DEPTH_COUNT = 6;
@@ -67,14 +68,14 @@ screen_t* screen;
 bool is_running;
 
 
-static char doc[] = "matrix - animation inspired by The Matrix";
+static char doc[] = "matrix - animation inspired by \"The Matrix\"";
 
 static char args_doc[] = "";
 
 static struct argp_option options[] =
 {
   { "speed",  's', "NUMBER", 0, "Speed of scrolling     (1-10)" },
-  { "depth",  'd', "NUMBER", 0, "Depth of environment   (0-5)" },
+  { "depth",  'd', "NUMBER", 0, "Depth of environment   (0-5)"  },
   { "length", 'l', "NUMBER", 0, "General length of line (1-10)" },
   { "air",    'a', "NUMBER", 0, "Air between strings    (1-10)" },
   { "typing", 't', 0,        0, "Don't exit on keypress"        },
@@ -361,6 +362,7 @@ static int depth_gen(void)
     if (cumulative_weight > rand_weight) return depth;
   }
 
+  // Default value (for the compilor to be happy :D)
   return args.depth;
 }
 
@@ -472,7 +474,7 @@ static int string_remove(column_t* column)
   // 1. Free the first (and oldest) string
   string_free(&column->strings[0]);
 
-  // 2. Shift the rest of the strings to take its place
+  // 2. Shift the rest of the strings to take it's place
   for (int index = 0; index < (column->count - 1); index++)
   {
     column->strings[index] = column->strings[index + 1];
@@ -593,7 +595,7 @@ static void string_print(string_t* string, int height, int x)
   {
     int y = string->y - index;
 
-    if (!(y >= 0 && y < height)) continue;
+    if (y < 0 || y >= height) continue;
 
 
     char symbol = string->symbols[index];
