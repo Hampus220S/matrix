@@ -108,18 +108,18 @@ static error_t opt_parse(int key, char* arg, struct argp_state* state)
 
   int number;
 
-  switch(key)
+  switch (key)
   {
     case 't':
       args->typing = true;
       break;
 
     case 's':
-      if(!arg) argp_usage(state);
+      if (!arg) argp_usage(state);
 
       number = atoi(arg);
 
-      if(number >= 1 && number <= 10)
+      if (number >= 1 && number <= 10)
       {
         args->speed = number;
       }
@@ -128,11 +128,11 @@ static error_t opt_parse(int key, char* arg, struct argp_state* state)
       break;
 
     case 'a':
-      if(!arg) argp_usage(state);
+      if (!arg) argp_usage(state);
 
       number = atoi(arg);
 
-      if(number >= 1 && number <= 10)
+      if (number >= 1 && number <= 10)
       {
         args->air = number;
       }
@@ -141,11 +141,11 @@ static error_t opt_parse(int key, char* arg, struct argp_state* state)
       break;
 
     case 'd':
-      if(!arg) argp_usage(state);
+      if (!arg) argp_usage(state);
 
       number = atoi(arg);
 
-      if(number >= 0 && number < DEPTH_COUNT)
+      if (number >= 0 && number < DEPTH_COUNT)
       {
         args->depth = number;
       }
@@ -154,11 +154,11 @@ static error_t opt_parse(int key, char* arg, struct argp_state* state)
       break;
 
     case 'l':
-      if(!arg) argp_usage(state);
+      if (!arg) argp_usage(state);
 
       number = atoi(arg);
 
-      if(number >= 1 && number <= 10)
+      if (number >= 1 && number <= 10)
       {
         args->length = number;
       }
@@ -186,7 +186,7 @@ static screen_t* screen_create(int width, int height)
 {
   screen_t* screen = malloc(sizeof(screen_t));
 
-  if(!screen)
+  if (!screen)
   {
     perror("malloc screen");
 
@@ -198,7 +198,7 @@ static screen_t* screen_create(int width, int height)
 
   screen->columns = malloc(sizeof(column_t) * screen->width);
 
-  if(!screen->columns)
+  if (!screen->columns)
   {
     free(screen);
 
@@ -207,7 +207,7 @@ static screen_t* screen_create(int width, int height)
     return NULL;
   }
 
-  for(int index = 0; index < screen->width; index++)
+  for (int index = 0; index < screen->width; index++)
   {
     column_t* column = &screen->columns[index];
 
@@ -231,7 +231,7 @@ static void string_free(string_t* string)
  */
 static void column_free(column_t* column)
 {
-  for(int index = 0; index < column->count; index++)
+  for (int index = 0; index < column->count; index++)
   {
     string_t* string = &column->strings[index];
 
@@ -246,9 +246,9 @@ static void column_free(column_t* column)
  */
 static void screen_free(screen_t** screen)
 {
-  if(!screen) return;
+  if (!screen) return;
 
-  for(int index = 0; index < (*screen)->width; index++)
+  for (int index = 0; index < (*screen)->width; index++)
   {
     column_t* column = &(*screen)->columns[index];
 
@@ -342,7 +342,7 @@ static int depth_gen(void)
   // 1. Calculate the total sum of weights
   int total_weight = 0;
 
-  for(int depth = 0; depth <= args.depth; depth++)
+  for (int depth = 0; depth <= args.depth; depth++)
   {
     total_weight += (args.depth - depth);
   }
@@ -354,11 +354,11 @@ static int depth_gen(void)
   // 3. Find the index based on the random weight
   int cumulative_weight = 0;
 
-  for(int depth = 0; depth < args.depth; depth++)
+  for (int depth = 0; depth < args.depth; depth++)
   {
     cumulative_weight += (args.depth - depth);
 
-    if(cumulative_weight > rand_weight) return depth;
+    if (cumulative_weight > rand_weight) return depth;
   }
 
   return args.depth;
@@ -385,7 +385,7 @@ static int string_init(string_t* string)
 
   string->symbols = malloc(sizeof(char) * string->length);
 
-  if(!string->symbols)
+  if (!string->symbols)
   {
     perror("malloc symbols");
 
@@ -393,7 +393,7 @@ static int string_init(string_t* string)
   }
 
   // Initialize random symbols
-  for(int index = 0; index < string->length; index++)
+  for (int index = 0; index < string->length; index++)
   {
     string->symbols[index] = symbol_get();
   }
@@ -413,12 +413,12 @@ static void string_update(string_t* string)
 {
   string->clock = (string->clock + 1) % (string->depth + 1);
 
-  if(string->clock != 0) return; 
+  if (string->clock != 0) return;
   
 
   string->y++;
 
-  for(int index = string->length; index-- > 1;)
+  for (int index = string->length; index-- > 1;)
   {
     string->symbols[index] = string->symbols[index - 1];
   }
@@ -435,7 +435,7 @@ static int string_append(column_t* column)
 {
   string_t new_string;
 
-  if(string_init(&new_string) != 0)
+  if (string_init(&new_string) != 0)
   {
     perror("string init");
 
@@ -444,7 +444,7 @@ static int string_append(column_t* column)
 
   string_t* temp_strings = realloc(column->strings, sizeof(string_t) * (column->count + 1));
 
-  if(!temp_strings)
+  if (!temp_strings)
   {
     perror("realloc strings");
 
@@ -469,13 +469,13 @@ static int string_append(column_t* column)
  */
 static int string_remove(column_t* column)
 {
-  if(column->count <= 0) return 1;
+  if (column->count <= 0) return 1;
 
   // 1. Free the first (and oldest) string
   string_free(&column->strings[0]);
 
   // 2. Shift the rest of the strings to take its place
-  for(int index = 0; index < (column->count - 1); index++)
+  for (int index = 0; index < (column->count - 1); index++)
   {
     column->strings[index] = column->strings[index + 1];
   }
@@ -483,7 +483,7 @@ static int string_remove(column_t* column)
   // 3. Free the old memory and shrink the array
   string_t* temp_strings = realloc(column->strings, sizeof(string_t) * (column->count - 1));
 
-  if(!temp_strings)
+  if (!temp_strings)
   {
     perror("realloc strings");
 
@@ -507,7 +507,7 @@ static int string_remove(column_t* column)
 static int column_update(column_t* column, int height)
 {
   // 1. Update each string (scroll)
-  for(int index = 0; index < column->count; index++)
+  for (int index = 0; index < column->count; index++)
   {
     string_t* string = &column->strings[index];
 
@@ -515,14 +515,14 @@ static int column_update(column_t* column, int height)
   }
 
   // 2. If strings exists
-  if(column->count > 0)
+  if (column->count > 0)
   {
     // Append new string, if last string is fully visable
     string_t* last_string = &column->strings[column->count - 1];
 
-    if(last_string->y - last_string->length > 0)
+    if (last_string->y - last_string->length > 0)
     {
-      if(string_append(column) != 0)
+      if (string_append(column) != 0)
       {
         return 1;
       }
@@ -531,9 +531,9 @@ static int column_update(column_t* column, int height)
     // Remove oldest string, if it is not visable
     string_t* first_string = &column->strings[0];
 
-    if(first_string->y - first_string->length >= height)
+    if (first_string->y - first_string->length >= height)
     {
-      if(string_remove(column) != 0)
+      if (string_remove(column) != 0)
       {
         return 2;
       }
@@ -541,7 +541,7 @@ static int column_update(column_t* column, int height)
   }
   else // If no strings exists, append one
   {
-    if(string_append(column) != 0)
+    if (string_append(column) != 0)
     {
       return 1;
     }
@@ -555,9 +555,9 @@ static int column_update(column_t* column, int height)
  */
 static int screen_update(screen_t* screen)
 {
-  for(int index = 0; index < screen->width; index++)
+  for (int index = 0; index < screen->width; index++)
   {
-    if(column_update(&screen->columns[index], screen->height) != 0)
+    if (column_update(&screen->columns[index], screen->height) != 0)
     {
       return 1;
     }
@@ -576,7 +576,7 @@ static int screen_update(screen_t* screen)
  */
 static int color_get(int depth, int index, int length)
 {
-  if(index == 0) return 1 + depth * COLOR_COUNT;
+  if (index == 0) return 1 + depth * COLOR_COUNT;
 
 
   float ratio = (float) index / (float) length;
@@ -591,11 +591,11 @@ static int color_get(int depth, int index, int length)
  */
 static void string_print(string_t* string, int height, int x)
 {
-  for(int index = 0; index < string->length; index++)
+  for (int index = 0; index < string->length; index++)
   {
     int y = string->y - index;
 
-    if(!(y >= 0 && y < height)) continue;
+    if (!(y >= 0 && y < height)) continue;
 
 
     char symbol = string->symbols[index];
@@ -616,7 +616,7 @@ static void string_print(string_t* string, int height, int x)
  */
 static void column_print(column_t* column, int height, int x)
 {
-  for(int index = 0; index < column->count; index++)
+  for (int index = 0; index < column->count; index++)
   {
     string_t* string = &column->strings[index];
 
@@ -629,7 +629,7 @@ static void column_print(column_t* column, int height, int x)
  */
 static void screen_print(screen_t* screen)
 {
-  for(int x = 0; x < screen->width; x++)
+  for (int x = 0; x < screen->width; x++)
   {
     column_t* column = &screen->columns[x];
 
@@ -668,11 +668,11 @@ static void* print_routine(void* arg)
 {
   unsigned int delay = delay_get();
 
-  while(is_running)
+  while (is_running)
   {
     erase();
 
-    if(screen_update(screen) != 0)
+    if (screen_update(screen) != 0)
     {
       perror("screen update");
 
@@ -701,7 +701,7 @@ static void* print_routine(void* arg)
  */
 static void colors_init(void)
 {
-  for(int index = 0; index < DEPTH_COUNT * COLOR_COUNT; index++)
+  for (int index = 0; index < DEPTH_COUNT * COLOR_COUNT; index++)
   {
     int color = COLOR_CODES[index];
 
@@ -718,7 +718,7 @@ static int curses_init(void)
   noecho();
   curs_set(0);
 
-  if(start_color() == ERR || !has_colors())
+  if (start_color() == ERR || !has_colors())
   {
     endwin();
 
@@ -761,7 +761,7 @@ int main(int argc, char* argv[])
   srand(time(NULL));
 
 
-  if(curses_init() != 0)
+  if (curses_init() != 0)
   {
     perror("init curses");
 
@@ -779,7 +779,7 @@ int main(int argc, char* argv[])
 
   pthread_t thread;
 
-  if(pthread_create(&thread, NULL, print_routine, NULL) != 0)
+  if (pthread_create(&thread, NULL, print_routine, NULL) != 0)
   {
     curses_free();
 
@@ -791,9 +791,9 @@ int main(int argc, char* argv[])
   }
 
   int key;
-  while((key = getch()) != ERR)
+  while ((key = getch()) != ERR)
   {
-    if(key == KEY_RESIZE)
+    if (key == KEY_RESIZE)
     {
       height = getmaxy(stdscr);
       width  = getmaxx(stdscr);
@@ -804,9 +804,9 @@ int main(int argc, char* argv[])
     }
     else
     {
-      if(!args.typing) break;
+      if (!args.typing) break;
         
-      if(key == 'q') break;
+      if (key == 'q') break;
     }
 
     usleep(INPUT_DELAY);
@@ -819,7 +819,7 @@ int main(int argc, char* argv[])
   // Wait for the second thread to finish
   // pthread_cancel(thread);
 
-  if(pthread_join(thread, NULL) != 0)
+  if (pthread_join(thread, NULL) != 0)
   {
     curses_free();
 
