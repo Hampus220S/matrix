@@ -188,7 +188,7 @@ static screen_t* screen_create(int width, int height)
 
   if (!screen)
   {
-    perror("malloc screen");
+    perror("matrix: screen_create: malloc screen");
 
     return NULL;
   }
@@ -202,7 +202,7 @@ static screen_t* screen_create(int width, int height)
   {
     free(screen);
 
-    perror("malloc columns");
+    perror("matrix: screen_create: malloc columns");
 
     return NULL;
   }
@@ -387,7 +387,7 @@ static int string_init(string_t* string)
 
   if (!string->symbols)
   {
-    perror("malloc symbols");
+    perror("matrix: string_init: malloc symbols");
 
     return 1;
   }
@@ -437,8 +437,6 @@ static int string_append(column_t* column)
 
   if (string_init(&new_string) != 0)
   {
-    perror("string init");
-
     return 1;
   }
 
@@ -446,7 +444,7 @@ static int string_append(column_t* column)
 
   if (!temp_strings)
   {
-    perror("realloc strings");
+    perror("matrix: string_append: realloc strings");
 
     return 2;
   }
@@ -485,7 +483,7 @@ static int string_remove(column_t* column)
 
   if (!temp_strings)
   {
-    perror("realloc strings");
+    perror("matrix: string_remove: realloc strings");
 
     return 2;
   }
@@ -674,8 +672,6 @@ static void* print_routine(void* arg)
 
     if (screen_update(screen) != 0)
     {
-      perror("screen update");
-
       break;
     }
 
@@ -722,7 +718,7 @@ static int curses_init(void)
   {
     endwin();
 
-    perror("ncurses colors");
+    perror("matrix: curses_init: ncurses colors");
 
     return 1;
   }
@@ -763,8 +759,6 @@ int main(int argc, char* argv[])
 
   if (curses_init() != 0)
   {
-    perror("init curses");
-
     return 1;
   }
 
@@ -785,7 +779,7 @@ int main(int argc, char* argv[])
 
     screen_free(&screen);
 
-    perror("Failed to create second thread");
+    perror("matrix: main: pthread_create");
 
     return 2;
   }
@@ -825,7 +819,7 @@ int main(int argc, char* argv[])
 
     screen_free(&screen);
 
-    perror("Failed to join second thread");
+    perror("matrix: main: pthread_join");
 
     return 3;
   }
