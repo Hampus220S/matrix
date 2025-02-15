@@ -15,6 +15,8 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <signal.h>
+#include <locale.h>
+#include <wchar.h>
 
 #define RANDOM_VALUE_GET(MIN, MAX) (rand() % (1 + (MAX) - (MIN)) + (MIN))
 
@@ -22,7 +24,7 @@
 
 typedef struct
 {
-  char* symbols; // Symbols in string
+  wint_t* symbols; // Symbols in string
   int   length;  // Length of string
   int   depth;   // Depth in background
   int   clock;   // Internal clock
@@ -79,6 +81,7 @@ static struct argp_option options[] =
   { "length", 'l', "NUMBER", 0, "General length of line (1-10)" },
   { "air",    'a', "NUMBER", 0, "Air between strings    (1-10)" },
   { "typing", 't', 0,        0, "Don't exit on keypress"        },
+  { "ascii",  'A', 0,        0, "Print ASCII characters"        },
   { 0 }
 };
 
@@ -89,15 +92,17 @@ struct args
   int  length;
   int  air;
   bool typing;
+  bool ascii;
 };
 
 struct args args =
 {
   .speed  = 5,
-  .depth  = 0,
+  .depth  = 1,
   .length = 5,
   .air    = 5,
-  .typing = false
+  .typing = false,
+  .ascii  = false
 };
 
 /*
@@ -113,6 +118,10 @@ static error_t opt_parse(int key, char* arg, struct argp_state* state)
   {
     case 't':
       args->typing = true;
+      break;
+
+    case 'A':
+      args->ascii = true;
       break;
 
     case 's':
@@ -266,11 +275,18 @@ static void screen_free(screen_t** screen)
 /*
  * Get a new random symbol for a string
  *
- * The symbol can be between ASCII 33 and 126
+ * The symbol can either be
+ * 1. ASCII letters, numbers, symbols
+ * 2. Japanese half width Katakana
  */
-static char symbol_get(void)
+static wint_t symbol_get(void)
 {
-  return RANDOM_VALUE_GET(33, 126);
+  if (args.ascii)
+  {
+    return RANDOM_VALUE_GET(33, 126);
+  }
+
+  return RANDOM_VALUE_GET(0xFF60, 0xFF9F);
 }
 
 /*
@@ -385,7 +401,7 @@ static int string_init(string_t* string)
   string->clock  = 0;
 
 
-  string->symbols = malloc(sizeof(char) * string->length);
+  string->symbols = malloc(sizeof(wint_t) * string->length);
 
   if (!string->symbols)
   {
@@ -598,14 +614,16 @@ static void string_print(string_t* string, int height, int x)
     if (y < 0 || y >= height) continue;
 
 
-    char symbol = string->symbols[index];
+    wint_t symbol = string->symbols[index];
 
     int color = color_get(string->depth, index, string->length);
 
 
     attron(COLOR_PAIR(color));
 
-    mvprintw(y, x, "%c", symbol);
+    wchar_t wide_str[2] = { symbol, L'\0' };
+
+    mvaddwstr(y, x, wide_str);
 
     attroff(COLOR_PAIR(color));
   }
@@ -723,6 +741,14 @@ static int curses_init(void)
     perror("matrix: curses_init: ncurses colors");
 
     return 1;
+  }
+
+  // If not ASCII, set locale to Japanese characters
+  if (!args.ascii && setlocale(LC_ALL, "ja_JP.UTF-8") == NULL)
+  {
+    perror("matrix: curses_init: setlocale");
+
+    return 2;
   }
 
   use_default_colors();
