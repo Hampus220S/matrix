@@ -2,7 +2,7 @@ COMPILE_FLAGS := -Wall -Werror
 
 LINKER_FLAGS := -lpthread -lncurses
 
-matrix: matrix.c matrix.h
+matrix: matrix.c
 	gcc matrix.c $(COMPILE_FLAGS) $(LINKER_FLAGS) -o matrix
 
 clean:

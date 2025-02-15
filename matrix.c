@@ -1,22 +1,46 @@
 /*
- * matrix.c
+ * matrix.c - animation inspired by The Matrix
  *
  * Written by Hampus Fridholm
  *
- * Last updated: 2024-11-30
+ * Last updated: 2025-02-15
  */
 
-/*
- * depth  - a number between 0 and 5
- *
- * speed  - a number between 1 and 10
- *
- * length - a number between 1 and 10
- *
- * air    - a number between 1 and 10
- */
+#include <stdio.h>
+#include <stdlib.h>
+#include <argp.h>
+#include <time.h>
+#include <stdbool.h>
+#include <ncurses.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <signal.h>
 
-#include "matrix.h"
+#define RANDOM_VALUE_GET(MIN, MAX) (rand() % (1 + (MAX) - (MIN)) + (MIN))
+
+#define RATIO_VALUE_GET(MIN, MAX, RATIO) ((RATIO) * ((MAX) - (MIN)) + (MIN))
+
+typedef struct
+{
+  char* symbols; // Symbols in string
+  int   length;  // Length of string
+  int   depth;   // Depth in background
+  int   clock;   // Internal clock
+  int   y;
+} string_t;
+
+typedef struct
+{
+  string_t* strings; // Strings in column
+  int       count;   // Number of strings
+} column_t;
+
+typedef struct
+{
+  column_t* columns; // Columns
+  int       width;   // Width  of screen
+  int       height;  // Height of screen
+} screen_t;
 
 #define INPUT_DELAY 500000
 
@@ -40,7 +64,7 @@ const int COLOR_CODES[] = {
 
 screen_t* screen;
 
-bool running;
+bool is_running;
 
 
 static char doc[] = "matrix - animation inspired by The Matrix";
@@ -49,11 +73,11 @@ static char args_doc[] = "";
 
 static struct argp_option options[] =
 {
-  { "speed",  's', "NUMBER", 0, "Speed of scrolling" },
-  { "depth",  'd', "NUMBER", 0, "Depth of environment" },
-  { "length", 'l', "NUMBER", 0, "General length of line" },
-  { "air",    'a', "NUMBER", 0, "Air between strings" },
-  { "typing", 't', 0,        0, "Don't exit on keypress" },
+  { "speed",  's', "NUMBER", 0, "Speed of scrolling     (1-10)" },
+  { "depth",  'd', "NUMBER", 0, "Depth of environment   (0-5)" },
+  { "length", 'l', "NUMBER", 0, "General length of line (1-10)" },
+  { "air",    'a', "NUMBER", 0, "Air between strings    (1-10)" },
+  { "typing", 't', 0,        0, "Don't exit on keypress"        },
   { 0 }
 };
 
@@ -644,7 +668,7 @@ static void* print_routine(void* arg)
 {
   unsigned int delay = delay_get();
 
-  while(running)
+  while(is_running)
   {
     erase();
 
@@ -681,7 +705,7 @@ static void colors_init(void)
   {
     int color = COLOR_CODES[index];
 
-    init_pair(index + 1, color, COLOR_BLACK);
+    init_pair(index + 1, color, -1);
   }
 }
 
@@ -750,7 +774,7 @@ int main(int argc, char* argv[])
 
   screen = screen_create(width, height);
 
-  running = true;
+  is_running = true;
 
 
   pthread_t thread;
@@ -790,7 +814,7 @@ int main(int argc, char* argv[])
     flushinp(); // Flush input buffer
   }
 
-  running = false;
+  is_running = false;
 
   // Wait for the second thread to finish
   // pthread_cancel(thread);
